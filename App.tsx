@@ -3,11 +3,18 @@ import { StyleSheet, Text, View } from "react-native";
 import ButtonRipple from "./components/ButtonRipple/ButtonRipple";
 
 export default function App() {
+  const handlePress = () => console.log("pressed", Date.now());
   return (
     <View style={styles.container}>
-      <ButtonRipple>
-        <Text>ButtonRipple</Text>
-      </ButtonRipple>
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple title="Press me" onPress={handlePress} />
+      <ButtonRipple isDisabled title="Press me" onPress={handlePress} />
+      <ButtonRipple isLoading title="Press me" onPress={handlePress} />
     </View>
   );
 }
@@ -15,7 +22,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ff000040",
+    backgroundColor: "#eee",
     alignItems: "center",
     justifyContent: "center",
   },
