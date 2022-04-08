@@ -20,6 +20,7 @@ import Animated, {
   useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withTiming,
 } from "react-native-reanimated";
 
@@ -27,8 +28,14 @@ type ButtonRippleProps = {
   isLoading?: boolean;
   isDisabled?: boolean;
   isNoRadius?: boolean;
+  isNoShadow?: boolean;
+  isAnimation?: boolean;
+  isOverlayLight?: boolean;
   isNoBackground?: boolean;
   title: string;
+  testID?: string;
+  debounceTimeout?: number;
+  overlayColor?: string;
   loaderSize?: "small" | "large";
   style?: StyleProp<ViewStyle>;
   titleStyle?: StyleProp<TextStyle>;
@@ -42,22 +49,34 @@ const ButtonRipple: FC<ButtonRippleProps> = memo(
     isDisabled = false,
     isNoBackground = false,
     isNoRadius = false,
+    isOverlayLight = false,
+    isNoShadow = false,
+    isAnimation = false,
     loaderSize = "small",
     title = "",
+    debounceTimeout = 300,
+    testID = "button",
+    overlayColor,
     style,
     titleStyle,
     onPress,
     onPressUI,
   }) => {
     const aref = useAnimatedRef();
-    const scale = useSharedValue(0);
-    const opacity = useSharedValue(0);
+    const called = useSharedValue(0);
+    const buttonScale = useSharedValue(1);
+    const overlayScale = useSharedValue(0);
+    const overlayOpacity = useSharedValue(0);
     const overlayProps = useSharedValue({ x: 0, y: 0, radius: 0 });
 
     const tapGesture = Gesture.Tap()
       .enabled(!isDisabled)
       .maxDuration(250)
       .onStart(({ x, y }) => {
+        if (called.value > 0) return;
+        called.value = 1;
+        called.value = withTiming(0, { duration: debounceTimeout });
+
         let radius;
         if (overlayProps.value.radius) {
           radius = overlayProps.value.radius;
@@ -65,21 +84,34 @@ const ButtonRipple: FC<ButtonRippleProps> = memo(
           const { width, height } = measure(aref);
           radius = Math.sqrt(height ** 2 + width ** 2);
         }
-        scale.value = 0;
-        opacity.value = 1;
+
+        overlayScale.value = 0;
+        overlayOpacity.value = 1;
         overlayProps.value = { radius, x, y };
-        scale.value = withTiming(
+
+        overlayScale.value = withTiming(
           1,
           { duration: 300, easing: Easing.in(Easing.quad) },
           () => {
-            opacity.value = withTiming(0, { duration: 200 });
+            overlayOpacity.value = withTiming(0, { duration: 200 });
           },
         );
-      })
-      .onEnd(() => {
+
+        if (isAnimation)
+          buttonScale.value = withSequence(
+            withTiming(1.05, { duration: 200, easing: Easing.back(10) }),
+            withTiming(1, { duration: 100 }),
+          );
+
         if (onPressUI) onPressUI();
         if (onPress) runOnJS(onPress)();
       });
+
+    const rRootStyle = useAnimatedStyle(() => {
+      return {
+        transform: [{ scale: buttonScale.value }],
+      };
+    });
 
     const rStyle = useAnimatedStyle(() => {
       const { x, y, radius } = overlayProps.value;
@@ -87,26 +119,30 @@ const ButtonRipple: FC<ButtonRippleProps> = memo(
         borderRadius: radius,
         width: radius * 2,
         height: radius * 2,
-        opacity: opacity.value,
+        opacity: overlayOpacity.value,
         transform: [
           { translateX: x - radius },
           { translateY: y - radius },
-          { scale: scale.value },
+          { scale: overlayScale.value },
         ],
       };
     }, []);
 
     return (
-      <GestureHandlerRootView>
+      <GestureHandlerRootView
+        style={[styles.root, isNoShadow ? styles.noShadow : undefined]}
+      >
         <GestureDetector gesture={tapGesture}>
-          <View
+          <Animated.View
             ref={aref}
+            testID={testID}
             style={[
               styles.button,
               style,
               isNoRadius ? styles.noRadius : undefined,
               isDisabled || isLoading ? styles.disabled : undefined,
               isNoBackground ? styles.noBackground : undefined,
+              rRootStyle,
             ]}
           >
             {!isLoading ? (
@@ -114,9 +150,14 @@ const ButtonRipple: FC<ButtonRippleProps> = memo(
             ) : null}
             <Animated.View
               pointerEvents="none"
-              style={[styles.overlayStyle, rStyle]}
+              style={[
+                styles.overlayStyle,
+                overlayColor ? { backgroundColor: overlayColor } : undefined,
+                isOverlayLight ? styles.overlayLight : undefined,
+                rStyle,
+              ]}
             />
-          </View>
+          </Animated.View>
         </GestureDetector>
         {isLoading ? (
           <ActivityIndicator
@@ -133,8 +174,24 @@ const ButtonRipple: FC<ButtonRippleProps> = memo(
 export default ButtonRipple;
 
 const styles = StyleSheet.create({
+  root: {
+    // iOS
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    // Android
+    elevation: 5,
+  },
+  noShadow: {
+    // iOS
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    // Android
+    elevation: 0,
+  },
   button: {
-    margin: 8,
+    margin: 16,
     height: 50,
     width: 150,
     borderRadius: 25,
@@ -154,8 +211,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     top: 0,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    backgroundColor: "rgba(0,0,0,0.15)",
   },
+  overlayLight: { backgroundColor: "rgba(255,255,255,0.4)" },
   activityIndicator: {
     ...StyleSheet.absoluteFillObject,
   },
